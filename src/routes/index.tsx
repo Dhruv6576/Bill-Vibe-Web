@@ -1,3 +1,4 @@
+import { PublicPaymentPage } from '../pages/PublicPaymentPage';
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
@@ -37,6 +38,11 @@ export const router = createBrowserRouter([
   {
     path: '/onboarding',
     element: <OnboardingPage />,
+  },
+  // Public Instant UPI Pay Gateway (For Invoices & PDFs)
+  {
+    path: '/pay',
+    element: <PublicPaymentPage />,
   },
   // Main Authenticated SaaS App (Wrapped with AppLayout, Sidebar, Navbar, Guards)
   {

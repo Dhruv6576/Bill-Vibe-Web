@@ -1,8 +1,7 @@
-import React, { useRef } from 'react';
+﻿import React, { useRef, useState } from 'react';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
-import { QrCode,
-  Printer, Download, Share2 } from 'lucide-react';
+import { QrCode, Printer, Download, Share2 } from 'lucide-react';
 import { Invoice, Business } from '../../types';
 import { ModernTemplate } from '../templates/ModernTemplate';
 import { Button } from '../../components/common/Button';
@@ -23,7 +22,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 }) => {
   const previewRef = useRef<HTMLDivElement>(null);
   const { showToast } = useNotification();
-  const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const handlePrint = () => {
     window.print();
@@ -62,26 +61,20 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
-      // Embed clickable PDF hyperlink over the QR code area for Mobile Tap-to-Pay
+      // Embed universal HTTPS clickable link over the QR code area
       if (business.upi_id) {
-        const upiUrl = generateUPIPaymentString({
-          upiId: business.upi_id,
-          payeeName: business.name,
-          amount: invoice.balance_due,
-          transactionNote: `Bill ${invoice.invoice_number}`,
-        });
+        const payUrl = `${window.location.origin}/pay?pa=${encodeURIComponent(business.upi_id)}&pn=${encodeURIComponent(business.name)}&am=${invoice.balance_due}&tn=${encodeURIComponent('Bill ' + invoice.invoice_number)}`;
 
         const qrContainer = previewRef.current.querySelector('a[title*="UPI"]') || previewRef.current.querySelector('img[alt="UPI Payment QR"]');
         if (qrContainer) {
           const containerRect = previewRef.current.getBoundingClientRect();
           const qrRect = qrContainer.getBoundingClientRect();
-          // Add 2mm extra tap padding for comfortable mobile thumb taps
           const xMm = Math.max(0, ((qrRect.left - containerRect.left) / containerRect.width) * pdfWidth - 1);
           const yMm = Math.max(0, ((qrRect.top - containerRect.top) / containerRect.height) * pdfHeight - 1);
           const wMm = (qrRect.width / containerRect.width) * pdfWidth + 2;
           const hMm = (qrRect.height / containerRect.height) * pdfHeight + 2;
 
-          pdf.link(xMm, yMm, wMm, hMm, { url: upiUrl });
+          pdf.link(xMm, yMm, wMm, hMm, { url: payUrl });
         }
       }
 
@@ -129,8 +122,9 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
     setIsGeneratingPDF(true);
 
     try {
-      showToast({ type: 'info', title: 'Preparing PDF...', message: 'Generating invoice document for sharing.' });
+      showToast({ type: 'info', title: 'Preparing PDF for WhatsApp...', message: 'Optimizing PDF attachment.' });
 
+      // Generate optimized PNG snapshot
       const imgData = await toPng(previewRef.current, {
         cacheBust: true,
         pixelRatio: 2,
@@ -155,22 +149,18 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
       if (business.upi_id) {
-        const upiUrl = generateUPIPaymentString({
-          upiId: business.upi_id,
-          payeeName: business.name,
-          amount: invoice.balance_due,
-          transactionNote: `Bill ${invoice.invoice_number}`,
-        });
+        const payUrl = `${window.location.origin}/pay?pa=${encodeURIComponent(business.upi_id)}&pn=${encodeURIComponent(business.name)}&am=${invoice.balance_due}&tn=${encodeURIComponent('Bill ' + invoice.invoice_number)}`;
 
-        const qrEl = previewRef.current.querySelector('img[alt="UPI Payment QR"]');
-        if (qrEl) {
+        const qrContainer = previewRef.current.querySelector('a[title*="UPI"]') || previewRef.current.querySelector('img[alt="UPI Payment QR"]');
+        if (qrContainer) {
           const containerRect = previewRef.current.getBoundingClientRect();
-          const qrRect = qrEl.getBoundingClientRect();
-          const xMm = ((qrRect.left - containerRect.left) / containerRect.width) * pdfWidth;
-          const yMm = ((qrRect.top - containerRect.top) / containerRect.height) * pdfHeight;
-          const wMm = (qrRect.width / containerRect.width) * pdfWidth;
-          const hMm = (qrRect.height / containerRect.height) * pdfHeight;
-          pdf.link(xMm, yMm, wMm, hMm, { url: upiUrl });
+          const qrRect = qrContainer.getBoundingClientRect();
+          const xMm = Math.max(0, ((qrRect.left - containerRect.left) / containerRect.width) * pdfWidth - 1);
+          const yMm = Math.max(0, ((qrRect.top - containerRect.top) / containerRect.height) * pdfHeight - 1);
+          const wMm = (qrRect.width / containerRect.width) * pdfWidth + 2;
+          const hMm = (qrRect.height / containerRect.height) * pdfHeight + 2;
+
+          pdf.link(xMm, yMm, wMm, hMm, { url: payUrl });
         }
       }
 
@@ -181,13 +171,10 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       const blob = pdf.output('blob');
       const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
 
-      const shareText = `Hello ${invoice.party_name},\n\nYour invoice *${invoice.invoice_number}* for *${formatINR(
-        invoice.grand_total
-      )}* from *${business.name}* is attached.\n\nBalance Due: *${formatINR(
-        invoice.balance_due
-      )}*\nDue Date: ${invoice.due_date}\n\nThank you for your business!`;
+      // Build structured WhatsApp message
+      const shareText = `Hello ${invoice.party_name},\n\nYour invoice *${invoice.invoice_number}* for *${formatINR(invoice.grand_total)}* from *${business.name}* is generated.\n\n*Balance Due:* ${formatINR(invoice.balance_due)}\n*Due Date:* ${invoice.due_date}\n\nThank you for your business!`;
 
-      // 1. Mobile Native Web Share API (WhatsApp / Gmail / Telegram with attached PDF file)
+      // 1. Mobile Web Share API: Native file sharing
       if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         await navigator.share({
           files: [pdfFile],
@@ -198,7 +185,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
         return;
       }
 
-      // 2. Desktop Browser: Download the PDF automatically + open WhatsApp Web
+      // 2. Desktop Browser: Download PDF + open WhatsApp chat
       const blobUrl = URL.createObjectURL(blob);
       const downloadLink = document.createElement('a');
       downloadLink.href = blobUrl;
@@ -259,6 +246,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
               Pay via UPI
             </Button>
           )}
+
           <Button
             variant="outline"
             size="sm"
