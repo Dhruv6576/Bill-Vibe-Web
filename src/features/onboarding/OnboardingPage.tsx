@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2,
@@ -22,7 +22,13 @@ import { useNotification } from '../../context/NotificationContext';
 
 export const OnboardingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { createBusiness } = useBusiness();
+  const { createBusiness, businesses, isLoading } = useBusiness();
+
+  useEffect(() => {
+    if (!isLoading && businesses.length > 0) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [businesses, isLoading, navigate]);
   const { showToast } = useNotification();
 
   const [step, setStep] = useState(1);

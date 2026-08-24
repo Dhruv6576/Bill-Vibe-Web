@@ -8,26 +8,26 @@ import { useAuth } from '../../context/AuthContext';
 import { useBusiness } from '../../context/BusinessContext';
 
 export const AppLayout: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
-  const { businesses } = useBusiness();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { businesses, isLoading: isBusinessLoading } = useBusiness();
 
-  if (isLoading) {
+  if (isAuthLoading || isBusinessLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm font-medium text-slate-500">Loading BillVibe...</span>
+          <span className="text-sm font-medium text-slate-500">Syncing with Cloud...</span>
         </div>
       </div>
     );
   }
 
-  // If not authenticated and no local demo user
+  // If not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // If user has no business yet, redirect to onboarding
+  // If user has no business after cloud sync finishes, redirect to onboarding
   if (businesses.length === 0) {
     return <Navigate to="/onboarding" replace />;
   }
@@ -45,10 +45,10 @@ export const AppLayout: React.FC = () => {
         </main>
       </div>
 
-      {/* Mobile Navigation */}
+      {/* Mobile Bottom Navigation */}
       <MobileNav />
 
-      {/* Toast Alert System */}
+      {/* Global Toast Notifications */}
       <ToastContainer />
     </div>
   );

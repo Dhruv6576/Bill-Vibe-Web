@@ -63,7 +63,12 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 
       // Embed universal HTTPS clickable link over the QR code area
       if (business.upi_id) {
-        const payUrl = `${window.location.origin}/pay?pa=${encodeURIComponent(business.upi_id)}&pn=${encodeURIComponent(business.name)}&am=${invoice.balance_due}&tn=${encodeURIComponent('Bill ' + invoice.invoice_number)}`;
+        const upiUrl = generateUPIPaymentString({
+          upiId: business.upi_id,
+          payeeName: business.name,
+          amount: invoice.balance_due,
+          transactionNote: `Bill ${invoice.invoice_number}`,
+        });
 
         const qrContainer = previewRef.current.querySelector('a[title*="UPI"]') || previewRef.current.querySelector('img[alt="UPI Payment QR"]');
         if (qrContainer) {
@@ -74,7 +79,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           const wMm = (qrRect.width / containerRect.width) * pdfWidth + 2;
           const hMm = (qrRect.height / containerRect.height) * pdfHeight + 2;
 
-          pdf.link(xMm, yMm, wMm, hMm, { url: payUrl });
+          pdf.link(xMm, yMm, wMm, hMm, { url: upiUrl });
         }
       }
 
@@ -149,7 +154,12 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
       if (business.upi_id) {
-        const payUrl = `${window.location.origin}/pay?pa=${encodeURIComponent(business.upi_id)}&pn=${encodeURIComponent(business.name)}&am=${invoice.balance_due}&tn=${encodeURIComponent('Bill ' + invoice.invoice_number)}`;
+        const upiUrl = generateUPIPaymentString({
+          upiId: business.upi_id,
+          payeeName: business.name,
+          amount: invoice.balance_due,
+          transactionNote: `Bill ${invoice.invoice_number}`,
+        });
 
         const qrContainer = previewRef.current.querySelector('a[title*="UPI"]') || previewRef.current.querySelector('img[alt="UPI Payment QR"]');
         if (qrContainer) {
@@ -160,7 +170,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           const wMm = (qrRect.width / containerRect.width) * pdfWidth + 2;
           const hMm = (qrRect.height / containerRect.height) * pdfHeight + 2;
 
-          pdf.link(xMm, yMm, wMm, hMm, { url: payUrl });
+          pdf.link(xMm, yMm, wMm, hMm, { url: upiUrl });
         }
       }
 
