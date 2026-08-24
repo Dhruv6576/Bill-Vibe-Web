@@ -1,7 +1,8 @@
 import React, { useRef } from 'react';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
-import { Printer, Download, Share2 } from 'lucide-react';
+import { QrCode,
+  Printer, Download, Share2 } from 'lucide-react';
 import { Invoice, Business } from '../../types';
 import { ModernTemplate } from '../templates/ModernTemplate';
 import { Button } from '../../components/common/Button';
@@ -70,14 +71,15 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           transactionNote: `Bill ${invoice.invoice_number}`,
         });
 
-        const qrEl = previewRef.current.querySelector('img[alt="UPI Payment QR"]');
-        if (qrEl) {
+        const qrContainer = previewRef.current.querySelector('a[title*="UPI"]') || previewRef.current.querySelector('img[alt="UPI Payment QR"]');
+        if (qrContainer) {
           const containerRect = previewRef.current.getBoundingClientRect();
-          const qrRect = qrEl.getBoundingClientRect();
-          const xMm = ((qrRect.left - containerRect.left) / containerRect.width) * pdfWidth;
-          const yMm = ((qrRect.top - containerRect.top) / containerRect.height) * pdfHeight;
-          const wMm = (qrRect.width / containerRect.width) * pdfWidth;
-          const hMm = (qrRect.height / containerRect.height) * pdfHeight;
+          const qrRect = qrContainer.getBoundingClientRect();
+          // Add 2mm extra tap padding for comfortable mobile thumb taps
+          const xMm = Math.max(0, ((qrRect.left - containerRect.left) / containerRect.width) * pdfWidth - 1);
+          const yMm = Math.max(0, ((qrRect.top - containerRect.top) / containerRect.height) * pdfHeight - 1);
+          const wMm = (qrRect.width / containerRect.width) * pdfWidth + 2;
+          const hMm = (qrRect.height / containerRect.height) * pdfHeight + 2;
 
           pdf.link(xMm, yMm, wMm, hMm, { url: upiUrl });
         }
@@ -235,7 +237,28 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           Live A4 Invoice Preview
         </span>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {business.upi_id && invoice.balance_due > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950/50"
+              onClick={() => {
+                const upi = generateUPIPaymentString({
+                  upiId: business.upi_id || '',
+                  payeeName: business.name,
+                  amount: invoice.balance_due,
+                  transactionNote: `Bill ${invoice.invoice_number}`,
+                });
+                if (upi) {
+                  window.location.href = upi;
+                }
+              }}
+              leftIcon={<QrCode className="w-3.5 h-3.5 text-indigo-600" />}
+            >
+              Pay via UPI
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

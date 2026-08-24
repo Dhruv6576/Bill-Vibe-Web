@@ -14,6 +14,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { PhoneInput } from '../../components/common/PhoneInput';
 import { Select } from '../../components/common/Select';
 import { GST_STATES, getStateCodeFromGSTIN } from '../../utils/gstEngine';
 import { useBusiness } from '../../context/BusinessContext';
@@ -240,11 +241,10 @@ export const OnboardingPage: React.FC = () => {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
-                <Input
+                <PhoneInput
                   label="Phone Number"
-                  placeholder="+91 98765 43210"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(val) => setFormData({ ...formData, phone: val })}
                 />
               </div>
 

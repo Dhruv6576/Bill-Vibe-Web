@@ -1,3 +1,4 @@
+import { supabaseSync } from './supabaseSync';
 import {
   Business,
   BusinessMember,
@@ -513,6 +514,7 @@ class LocalStore {
       list.push({ ...business, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
     }
     this.set(STORAGE_KEYS.BUSINESSES, list);
+    supabaseSync.syncBusiness(business);
     return business;
   }
 
@@ -544,6 +546,7 @@ class LocalStore {
       list.push({ ...party, id: party.id || crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
     }
     this.set(STORAGE_KEYS.PARTIES, list);
+    supabaseSync.syncParty(party);
     this.logAudit(party.business_id, index >= 0 ? 'update_party' : 'create_party', 'party', party.id, { name: party.name });
     return party;
   }
@@ -596,6 +599,7 @@ class LocalStore {
       list.push(updated);
     }
     this.set(STORAGE_KEYS.PRODUCTS, list);
+    supabaseSync.syncProduct(updated);
     this.logAudit(product.business_id, index >= 0 ? 'update_product' : 'create_product', 'product', updated.id, { name: product.name });
     return updated;
   }
@@ -690,6 +694,7 @@ class LocalStore {
     }
 
     this.set(STORAGE_KEYS.INVOICES, list);
+    supabaseSync.syncInvoice(updated);
     this.logAudit(invoice.business_id, index >= 0 ? 'update_invoice' : 'create_invoice', 'invoice', updated.id, {
       invoice_number: invoice.invoice_number,
       grand_total: invoice.grand_total,
@@ -826,6 +831,7 @@ class LocalStore {
       list.unshift(updated);
     }
     this.set(STORAGE_KEYS.EXPENSES, list);
+    supabaseSync.syncExpense(updated);
     return updated;
   }
 

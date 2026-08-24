@@ -1,3 +1,4 @@
+import { supabaseSync } from '../services/supabaseSync';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Business } from '../types';
 import { storageService } from '../services/storageService';
@@ -20,7 +21,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [activeBusinessId, setActiveBusinessIdState] = useState<string>('');
 
-  const loadData = () => {
+  const loadData = async () => {
     const list = storageService.getBusinesses(user?.id);
     setBusinesses(list);
     const activeId = storageService.getActiveBusinessId();
@@ -31,6 +32,15 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       storageService.setActiveBusinessId(list[0].id);
     } else {
       setActiveBusinessIdState('');
+    }
+
+    if (user?.id) {
+      const remote = await supabaseSync.pullBusinesses(user.id);
+      if (remote && remote.length > 0) {
+        remote.forEach((b) => storageService.saveBusiness(b));
+        const updatedList = storageService.getBusinesses(user.id);
+        setBusinesses(updatedList);
+      }
     }
   };
 

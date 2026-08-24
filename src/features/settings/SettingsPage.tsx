@@ -1,6 +1,8 @@
+import { supabaseSync } from '../../services/supabaseSync';
 import React, { useState } from 'react';
 import {
   Building2,
+  CloudUpload,
   FileCheck,
   CreditCard,
   QrCode,
@@ -16,6 +18,7 @@ import { useBusiness } from '../../context/BusinessContext';
 import { storageService } from '../../services/storageService';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { PhoneInput } from '../../components/common/PhoneInput';
 import { Select } from '../../components/common/Select';
 import { Textarea } from '../../components/common/Textarea';
 import { Badge } from '../../components/common/Badge';
@@ -27,6 +30,7 @@ export const SettingsPage: React.FC = () => {
   const { activeBusiness, updateActiveBusiness, activeBusinessId } = useBusiness();
   const { showToast } = useNotification();
 
+  const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'tax' | 'invoice' | 'bank' | 'team' | 'audit' | 'backup'>('profile');
 
   // Business Profile State
@@ -184,10 +188,10 @@ export const SettingsPage: React.FC = () => {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
-            <Input
+            <PhoneInput
               label="Phone Number"
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              onChange={(val) => setFormData({ ...formData, phone: val })}
             />
           </div>
           <Input
@@ -466,6 +470,31 @@ export const SettingsPage: React.FC = () => {
             <p className="text-xs text-slate-500 mt-0.5">
               Export all invoices, items, customer ledgers, payments, and audit logs into a portable JSON backup.
             </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Supabase Cloud Sync</p>
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">Push all local parties, products, invoices, and settings to Supabase tables</p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                setIsSyncing(true);
+                const res = await supabaseSync.syncAllLocalData(activeBusinessId);
+                setIsSyncing(false);
+                showToast({
+                  type: res.success ? 'success' : 'error',
+                  title: res.success ? 'Cloud Synced' : 'Sync Error',
+                  message: res.message,
+                });
+              }}
+              isLoading={isSyncing}
+              leftIcon={<CloudUpload className="w-4 h-4 text-emerald-600" />}
+            >
+              Sync to Supabase
+            </Button>
           </div>
 
           <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 flex items-center justify-between">

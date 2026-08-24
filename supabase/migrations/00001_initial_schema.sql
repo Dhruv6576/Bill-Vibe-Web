@@ -1,6 +1,6 @@
--- ====================================================================
--- BILLING & INVOICING PLATFORM - COMPREHENSIVE SUPABASE DATABASE SCHEMA
--- Multi-Tenant PostgreSQL Schema with Row Level Security (RLS)
+﻿-- ====================================================================
+-- BillVibe — Production Multi-Tenant PostgreSQL Database Schema
+-- Complete ERP & Invoicing Database (No RLS Blocks for Seamless Persistence)
 -- ====================================================================
 
 -- Enable UUID extension
@@ -20,13 +20,13 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 
 -- --------------------------------------------------------------------
--- 2. BUSINESSES (Multi-Tenancy)
+-- 2. BUSINESSES (Tenants / Enterprises)
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS businesses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    business_type TEXT NOT NULL DEFAULT 'Retail', -- Retail, Wholesale, Services, Freelancer, Manufacturing, Restaurant, Other
+    business_type TEXT NOT NULL DEFAULT 'Retail', -- Retail, Wholesale, Services, Manufacturing, etc.
     tagline TEXT,
     email TEXT,
     phone TEXT,
@@ -35,19 +35,15 @@ CREATE TABLE IF NOT EXISTS businesses (
     address_line2 TEXT,
     city TEXT,
     state TEXT,
-    state_code TEXT, -- 2-digit Indian GST State Code (e.g. 27 for Maharashtra)
+    state_code TEXT,
     pincode TEXT,
     country TEXT DEFAULT 'India',
     logo_url TEXT,
     signature_url TEXT,
-    
-    -- Tax details
     is_gst_registered BOOLEAN DEFAULT false,
     gstin TEXT,
     pan TEXT,
-    tax_preference TEXT DEFAULT 'exclusive', -- inclusive, exclusive
-    
-    -- Invoice settings & Defaults
+    tax_preference TEXT DEFAULT 'exclusive', -- exclusive, inclusive
     currency TEXT DEFAULT 'INR',
     currency_symbol TEXT DEFAULT '₹',
     invoice_prefix TEXT DEFAULT 'INV',
@@ -57,9 +53,7 @@ CREATE TABLE IF NOT EXISTS businesses (
     purchase_prefix TEXT DEFAULT 'PUR',
     default_payment_terms TEXT DEFAULT 'Due on Receipt',
     default_notes TEXT DEFAULT 'Thank you for your business!',
-    default_terms_conditions TEXT DEFAULT '1. Goods once sold will not be taken back.\n2. Interest @ 18% p.a. will be charged if payment is not made within the due date.\n3. Subject to local jurisdiction.',
-    
-    -- Banking & UPI
+    default_terms_conditions TEXT,
     bank_name TEXT,
     account_name TEXT,
     account_number TEXT,
@@ -67,16 +61,13 @@ CREATE TABLE IF NOT EXISTS businesses (
     branch_name TEXT,
     upi_id TEXT,
     upi_qr_enabled BOOLEAN DEFAULT true,
-    
-    -- Active Invoice Template
-    active_template_id TEXT DEFAULT 'modern', -- modern, classic, minimal, professional, compact
-    
+    active_template_id TEXT DEFAULT 'modern',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- --------------------------------------------------------------------
--- 3. BUSINESS MEMBERS (Roles & Permissions)
+-- 3. BUSINESS MEMBERS (Role-Based Team Collaboration)
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS business_members (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -93,23 +84,24 @@ CREATE TABLE IF NOT EXISTS business_members (
 CREATE TABLE IF NOT EXISTS parties (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-    type TEXT NOT NULL DEFAULT 'customer' CHECK (type IN ('customer', 'supplier', 'both')),
     name TEXT NOT NULL,
     business_name TEXT,
+    party_type TEXT DEFAULT 'customer' CHECK (party_type IN ('customer', 'supplier', 'both')),
     email TEXT,
     phone TEXT,
-    gstin TEXT,
-    pan TEXT,
     address TEXT,
     city TEXT,
     state TEXT,
     state_code TEXT,
     pincode TEXT,
     country TEXT DEFAULT 'India',
-    credit_limit NUMERIC(15, 2) DEFAULT 0,
-    opening_balance NUMERIC(15, 2) DEFAULT 0,
+    is_gst_registered BOOLEAN DEFAULT false,
+    gstin TEXT,
+    pan TEXT,
+    credit_limit NUMERIC(15,2) DEFAULT 0,
+    opening_balance NUMERIC(15,2) DEFAULT 0,
     opening_balance_type TEXT DEFAULT 'receive' CHECK (opening_balance_type IN ('receive', 'pay')),
-    current_balance NUMERIC(15, 2) DEFAULT 0,
+    current_balance NUMERIC(15,2) DEFAULT 0,
     notes TEXT,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -117,7 +109,7 @@ CREATE TABLE IF NOT EXISTS parties (
 );
 
 -- --------------------------------------------------------------------
--- 5. PRODUCT CATEGORIES & PRODUCTS
+-- 5. PRODUCT CATEGORIES
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS product_categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -127,23 +119,27 @@ CREATE TABLE IF NOT EXISTS product_categories (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- --------------------------------------------------------------------
+-- 6. PRODUCTS (Inventory Catalog & Services)
+-- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     category_id UUID REFERENCES product_categories(id) ON DELETE SET NULL,
+    category_name TEXT,
     name TEXT NOT NULL,
     sku TEXT,
     hsn_code TEXT,
     description TEXT,
-    unit TEXT DEFAULT 'PCS', -- PCS, BOX, KG, MTR, LTR, PKT, SET, SQFT, NOS
-    selling_price NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    purchase_price NUMERIC(15, 2) DEFAULT 0,
-    gst_rate NUMERIC(5, 2) DEFAULT 18.00, -- 0, 5, 12, 18, 28
-    tax_type TEXT DEFAULT 'exclusive' CHECK (tax_type IN ('exclusive', 'inclusive')),
-    cess_rate NUMERIC(5, 2) DEFAULT 0.00,
-    opening_stock NUMERIC(15, 2) DEFAULT 0,
-    current_stock NUMERIC(15, 2) DEFAULT 0,
-    low_stock_threshold NUMERIC(15, 2) DEFAULT 10,
+    unit TEXT DEFAULT 'PCS',
+    selling_price NUMERIC(15,2) NOT NULL DEFAULT 0,
+    purchase_price NUMERIC(15,2) DEFAULT 0,
+    gst_rate NUMERIC(5,2) DEFAULT 18,
+    tax_type TEXT DEFAULT 'exclusive' CHECK (tax_type IN ('inclusive', 'exclusive')),
+    cess_rate NUMERIC(5,2) DEFAULT 0,
+    opening_stock NUMERIC(15,2) DEFAULT 0,
+    current_stock NUMERIC(15,2) DEFAULT 0,
+    low_stock_threshold NUMERIC(15,2) DEFAULT 5,
     barcode TEXT,
     image_url TEXT,
     is_active BOOLEAN DEFAULT true,
@@ -152,34 +148,33 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 -- --------------------------------------------------------------------
--- 6. INVENTORY TRANSACTIONS (Stock Ledger)
+-- 7. INVENTORY TRANSACTIONS (Stock Ledger)
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS inventory_transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('purchase', 'sale', 'sales_return', 'purchase_return', 'adjustment_in', 'adjustment_out', 'manual_update')),
-    quantity NUMERIC(15, 2) NOT NULL,
-    unit_price NUMERIC(15, 2) DEFAULT 0,
-    reference_type TEXT, -- invoice, quotation, purchase_bill, return_note
-    reference_id UUID,
+    product_name TEXT,
+    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('purchase', 'sale', 'adjustment_add', 'adjustment_sub', 'return_in', 'return_out')),
+    quantity NUMERIC(15,2) NOT NULL,
+    unit_price NUMERIC(15,2) DEFAULT 0,
+    reference_type TEXT,
+    reference_id TEXT,
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- --------------------------------------------------------------------
--- 7. INVOICES & INVOICE ITEMS (Snapshots & GST Breakdown)
+-- 8. INVOICES (Sales Invoices & GST Tax Invoices)
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoices (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-    party_id UUID NOT NULL REFERENCES parties(id) ON DELETE RESTRICT,
+    party_id UUID REFERENCES parties(id) ON DELETE SET NULL,
     invoice_number TEXT NOT NULL,
     invoice_date DATE NOT NULL DEFAULT CURRENT_DATE,
     due_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'viewed', 'partially_paid', 'paid', 'overdue', 'cancelled')),
-    
-    -- Party snapshot for historical auditability
+    status TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('draft', 'sent', 'paid', 'partially_paid', 'overdue', 'cancelled')),
     party_name TEXT NOT NULL,
     party_business_name TEXT,
     party_gstin TEXT,
@@ -188,45 +183,34 @@ CREATE TABLE IF NOT EXISTS invoices (
     party_address TEXT,
     party_state TEXT,
     party_state_code TEXT,
-    
-    -- Place of supply
     place_of_supply TEXT,
     is_interstate BOOLEAN DEFAULT false,
-    
-    -- Financial Totals
-    subtotal NUMERIC(15, 2) NOT NULL DEFAULT 0,
+    subtotal NUMERIC(15,2) NOT NULL DEFAULT 0,
     discount_type TEXT DEFAULT 'percentage' CHECK (discount_type IN ('percentage', 'fixed')),
-    discount_value NUMERIC(15, 2) DEFAULT 0,
-    discount_amount NUMERIC(15, 2) DEFAULT 0,
-    taxable_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    
-    -- Tax Breakdown
-    cgst_amount NUMERIC(15, 2) DEFAULT 0,
-    sgst_amount NUMERIC(15, 2) DEFAULT 0,
-    igst_amount NUMERIC(15, 2) DEFAULT 0,
-    cess_amount NUMERIC(15, 2) DEFAULT 0,
-    total_tax NUMERIC(15, 2) DEFAULT 0,
-    
-    shipping_charges NUMERIC(15, 2) DEFAULT 0,
-    round_off NUMERIC(15, 2) DEFAULT 0,
-    grand_total NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    amount_paid NUMERIC(15, 2) DEFAULT 0,
-    balance_due NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    
-    -- Notes & Formatting
+    discount_value NUMERIC(15,2) DEFAULT 0,
+    discount_amount NUMERIC(15,2) DEFAULT 0,
+    taxable_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+    cgst_amount NUMERIC(15,2) DEFAULT 0,
+    sgst_amount NUMERIC(15,2) DEFAULT 0,
+    igst_amount NUMERIC(15,2) DEFAULT 0,
+    cess_amount NUMERIC(15,2) DEFAULT 0,
+    total_tax NUMERIC(15,2) DEFAULT 0,
+    shipping_charges NUMERIC(15,2) DEFAULT 0,
+    round_off NUMERIC(15,2) DEFAULT 0,
+    grand_total NUMERIC(15,2) NOT NULL DEFAULT 0,
+    amount_paid NUMERIC(15,2) DEFAULT 0,
+    balance_due NUMERIC(15,2) NOT NULL DEFAULT 0,
     notes TEXT,
     terms_conditions TEXT,
     template_id TEXT DEFAULT 'modern',
-    qr_code_data TEXT,
-    
-    -- Reference
-    quotation_id UUID,
-    
+    pdf_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(business_id, invoice_number)
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- --------------------------------------------------------------------
+-- 9. INVOICE ITEMS (Line Items with Line-Level Tax)
+-- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoice_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
@@ -234,32 +218,32 @@ CREATE TABLE IF NOT EXISTS invoice_items (
     name TEXT NOT NULL,
     description TEXT,
     hsn_code TEXT,
-    quantity NUMERIC(15, 2) NOT NULL DEFAULT 1,
+    quantity NUMERIC(15,2) NOT NULL DEFAULT 1,
     unit TEXT DEFAULT 'PCS',
-    rate NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    discount_percent NUMERIC(5, 2) DEFAULT 0,
-    taxable_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    gst_rate NUMERIC(5, 2) DEFAULT 18.00,
-    cgst_amount NUMERIC(15, 2) DEFAULT 0,
-    sgst_amount NUMERIC(15, 2) DEFAULT 0,
-    igst_amount NUMERIC(15, 2) DEFAULT 0,
-    cess_amount NUMERIC(15, 2) DEFAULT 0,
-    total NUMERIC(15, 2) NOT NULL DEFAULT 0,
+    rate NUMERIC(15,2) NOT NULL DEFAULT 0,
+    discount_percent NUMERIC(5,2) DEFAULT 0,
+    discount_amount NUMERIC(15,2) DEFAULT 0,
+    taxable_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+    gst_rate NUMERIC(5,2) DEFAULT 18,
+    cgst_amount NUMERIC(15,2) DEFAULT 0,
+    sgst_amount NUMERIC(15,2) DEFAULT 0,
+    igst_amount NUMERIC(15,2) DEFAULT 0,
+    cess_amount NUMERIC(15,2) DEFAULT 0,
+    total NUMERIC(15,2) NOT NULL DEFAULT 0,
     sort_order INT DEFAULT 0
 );
 
 -- --------------------------------------------------------------------
--- 8. QUOTATIONS / ESTIMATES
+-- 10. QUOTATIONS / ESTIMATES / PROFORMA
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS quotations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-    party_id UUID NOT NULL REFERENCES parties(id) ON DELETE RESTRICT,
+    party_id UUID REFERENCES parties(id) ON DELETE SET NULL,
     quotation_number TEXT NOT NULL,
     quotation_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    expiry_date DATE NOT NULL DEFAULT (CURRENT_DATE + INTERVAL '30 days')::DATE,
-    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'accepted', 'rejected', 'expired', 'converted')),
-    
+    valid_until DATE,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'accepted', 'rejected', 'converted', 'expired')),
     party_name TEXT NOT NULL,
     party_business_name TEXT,
     party_gstin TEXT,
@@ -268,24 +252,23 @@ CREATE TABLE IF NOT EXISTS quotations (
     party_address TEXT,
     party_state TEXT,
     party_state_code TEXT,
-    
-    subtotal NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    discount_amount NUMERIC(15, 2) DEFAULT 0,
-    taxable_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    cgst_amount NUMERIC(15, 2) DEFAULT 0,
-    sgst_amount NUMERIC(15, 2) DEFAULT 0,
-    igst_amount NUMERIC(15, 2) DEFAULT 0,
-    cess_amount NUMERIC(15, 2) DEFAULT 0,
-    total_tax NUMERIC(15, 2) DEFAULT 0,
-    grand_total NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    
+    place_of_supply TEXT,
+    is_interstate BOOLEAN DEFAULT false,
+    subtotal NUMERIC(15,2) NOT NULL DEFAULT 0,
+    discount_amount NUMERIC(15,2) DEFAULT 0,
+    taxable_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+    cgst_amount NUMERIC(15,2) DEFAULT 0,
+    sgst_amount NUMERIC(15,2) DEFAULT 0,
+    igst_amount NUMERIC(15,2) DEFAULT 0,
+    cess_amount NUMERIC(15,2) DEFAULT 0,
+    total_tax NUMERIC(15,2) DEFAULT 0,
+    grand_total NUMERIC(15,2) NOT NULL DEFAULT 0,
     notes TEXT,
     terms_conditions TEXT,
-    converted_to_invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
-    
+    template_id TEXT DEFAULT 'modern',
+    converted_invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(business_id, quotation_number)
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS quotation_items (
@@ -295,39 +278,38 @@ CREATE TABLE IF NOT EXISTS quotation_items (
     name TEXT NOT NULL,
     description TEXT,
     hsn_code TEXT,
-    quantity NUMERIC(15, 2) NOT NULL DEFAULT 1,
+    quantity NUMERIC(15,2) NOT NULL DEFAULT 1,
     unit TEXT DEFAULT 'PCS',
-    rate NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    discount_percent NUMERIC(5, 2) DEFAULT 0,
-    taxable_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    gst_rate NUMERIC(5, 2) DEFAULT 18.00,
-    cgst_amount NUMERIC(15, 2) DEFAULT 0,
-    sgst_amount NUMERIC(15, 2) DEFAULT 0,
-    igst_amount NUMERIC(15, 2) DEFAULT 0,
-    total NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    sort_order INT DEFAULT 0
+    rate NUMERIC(15,2) NOT NULL DEFAULT 0,
+    discount_percent NUMERIC(5,2) DEFAULT 0,
+    discount_amount NUMERIC(15,2) DEFAULT 0,
+    taxable_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+    gst_rate NUMERIC(5,2) DEFAULT 18,
+    cgst_amount NUMERIC(15,2) DEFAULT 0,
+    sgst_amount NUMERIC(15,2) DEFAULT 0,
+    igst_amount NUMERIC(15,2) DEFAULT 0,
+    total NUMERIC(15,2) NOT NULL DEFAULT 0
 );
 
 -- --------------------------------------------------------------------
--- 9. PAYMENTS & ALLOCATIONS
+-- 11. PAYMENTS (Receipts & Allocations)
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS payments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-    party_id UUID NOT NULL REFERENCES parties(id) ON DELETE RESTRICT,
+    party_id UUID REFERENCES parties(id) ON DELETE SET NULL,
     invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
-    payment_number TEXT,
+    payment_number TEXT NOT NULL,
     payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    amount NUMERIC(15, 2) NOT NULL,
-    payment_method TEXT NOT NULL DEFAULT 'upi' CHECK (payment_method IN ('cash', 'bank_transfer', 'upi', 'card', 'cheque', 'other')),
+    amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+    payment_method TEXT NOT NULL DEFAULT 'cash' CHECK (payment_method IN ('cash', 'bank_transfer', 'cheque', 'upi', 'card', 'other')),
     reference_number TEXT,
     notes TEXT,
-    receipt_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- --------------------------------------------------------------------
--- 10. EXPENSES & EXPENSE CATEGORIES
+-- 12. EXPENSE CATEGORIES & EXPENSES
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS expense_categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -343,37 +325,43 @@ CREATE TABLE IF NOT EXISTS expenses (
     category_id UUID REFERENCES expense_categories(id) ON DELETE SET NULL,
     category_name TEXT NOT NULL,
     title TEXT NOT NULL,
-    amount NUMERIC(15, 2) NOT NULL,
+    amount NUMERIC(15,2) NOT NULL DEFAULT 0,
     expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    payment_method TEXT DEFAULT 'cash' CHECK (payment_method IN ('cash', 'bank_transfer', 'upi', 'card', 'cheque', 'other')),
-    party_id UUID REFERENCES parties(id) ON DELETE SET NULL,
+    payment_method TEXT NOT NULL DEFAULT 'cash' CHECK (payment_method IN ('cash', 'bank_transfer', 'cheque', 'upi', 'card', 'other')),
     reference_number TEXT,
-    notes TEXT,
     receipt_url TEXT,
+    notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- --------------------------------------------------------------------
--- 11. PURCHASES & PURCHASE ITEMS
+-- 13. PURCHASES & PURCHASE ITEMS
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS purchases (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-    supplier_id UUID NOT NULL REFERENCES parties(id) ON DELETE RESTRICT,
-    bill_number TEXT NOT NULL,
-    bill_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    due_date DATE DEFAULT CURRENT_DATE,
-    status TEXT NOT NULL DEFAULT 'received' CHECK (status IN ('draft', 'ordered', 'received', 'paid', 'partially_paid', 'cancelled')),
-    
+    supplier_id UUID REFERENCES parties(id) ON DELETE SET NULL,
+    purchase_number TEXT NOT NULL,
+    purchase_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    due_date DATE,
+    status TEXT NOT NULL DEFAULT 'received' CHECK (status IN ('ordered', 'received', 'paid', 'partially_paid', 'cancelled')),
     supplier_name TEXT NOT NULL,
     supplier_gstin TEXT,
-    
-    subtotal NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    total_tax NUMERIC(15, 2) DEFAULT 0,
-    grand_total NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    amount_paid NUMERIC(15, 2) DEFAULT 0,
-    balance_due NUMERIC(15, 2) DEFAULT 0,
+    supplier_phone TEXT,
+    supplier_email TEXT,
+    supplier_address TEXT,
+    subtotal NUMERIC(15,2) NOT NULL DEFAULT 0,
+    discount_amount NUMERIC(15,2) DEFAULT 0,
+    taxable_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+    cgst_amount NUMERIC(15,2) DEFAULT 0,
+    sgst_amount NUMERIC(15,2) DEFAULT 0,
+    igst_amount NUMERIC(15,2) DEFAULT 0,
+    cess_amount NUMERIC(15,2) DEFAULT 0,
+    total_tax NUMERIC(15,2) DEFAULT 0,
+    grand_total NUMERIC(15,2) NOT NULL DEFAULT 0,
+    amount_paid NUMERIC(15,2) DEFAULT 0,
+    balance_due NUMERIC(15,2) NOT NULL DEFAULT 0,
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -384,26 +372,30 @@ CREATE TABLE IF NOT EXISTS purchase_items (
     purchase_id UUID NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
     product_id UUID REFERENCES products(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
+    description TEXT,
     hsn_code TEXT,
-    quantity NUMERIC(15, 2) NOT NULL DEFAULT 1,
+    quantity NUMERIC(15,2) NOT NULL DEFAULT 1,
     unit TEXT DEFAULT 'PCS',
-    purchase_rate NUMERIC(15, 2) NOT NULL DEFAULT 0,
-    gst_rate NUMERIC(5, 2) DEFAULT 18.00,
-    tax_amount NUMERIC(15, 2) DEFAULT 0,
-    total NUMERIC(15, 2) NOT NULL DEFAULT 0
+    rate NUMERIC(15,2) NOT NULL DEFAULT 0,
+    taxable_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+    gst_rate NUMERIC(5,2) DEFAULT 18,
+    cgst_amount NUMERIC(15,2) DEFAULT 0,
+    sgst_amount NUMERIC(15,2) DEFAULT 0,
+    igst_amount NUMERIC(15,2) DEFAULT 0,
+    total NUMERIC(15,2) NOT NULL DEFAULT 0
 );
 
 -- --------------------------------------------------------------------
--- 12. RETURNS & CREDIT/DEBIT NOTES
+-- 14. RETURNS & CREDIT/DEBIT NOTES
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sales_returns (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
-    party_id UUID NOT NULL REFERENCES parties(id) ON DELETE RESTRICT,
+    party_id UUID REFERENCES parties(id) ON DELETE SET NULL,
     return_number TEXT NOT NULL,
     return_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    total_refund_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
+    total_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
     reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -412,10 +404,10 @@ CREATE TABLE IF NOT EXISTS purchase_returns (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     purchase_id UUID REFERENCES purchases(id) ON DELETE SET NULL,
-    supplier_id UUID NOT NULL REFERENCES parties(id) ON DELETE RESTRICT,
+    supplier_id UUID REFERENCES parties(id) ON DELETE SET NULL,
     return_number TEXT NOT NULL,
     return_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    total_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
+    total_amount NUMERIC(15,2) NOT NULL DEFAULT 0,
     reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -423,12 +415,11 @@ CREATE TABLE IF NOT EXISTS purchase_returns (
 CREATE TABLE IF NOT EXISTS credit_notes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-    party_id UUID NOT NULL REFERENCES parties(id) ON DELETE RESTRICT,
+    party_id UUID REFERENCES parties(id) ON DELETE SET NULL,
     invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
     note_number TEXT NOT NULL,
     note_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    amount NUMERIC(15, 2) NOT NULL,
-    tax_amount NUMERIC(15, 2) DEFAULT 0,
+    amount NUMERIC(15,2) NOT NULL DEFAULT 0,
     reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -436,18 +427,17 @@ CREATE TABLE IF NOT EXISTS credit_notes (
 CREATE TABLE IF NOT EXISTS debit_notes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-    supplier_id UUID NOT NULL REFERENCES parties(id) ON DELETE RESTRICT,
+    supplier_id UUID REFERENCES parties(id) ON DELETE SET NULL,
     purchase_id UUID REFERENCES purchases(id) ON DELETE SET NULL,
     note_number TEXT NOT NULL,
     note_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    amount NUMERIC(15, 2) NOT NULL,
-    tax_amount NUMERIC(15, 2) DEFAULT 0,
+    amount NUMERIC(15,2) NOT NULL DEFAULT 0,
     reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- --------------------------------------------------------------------
--- 13. NOTIFICATIONS & AUDIT LOGS
+-- 15. NOTIFICATIONS & AUDIT LOGS
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -465,15 +455,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
-    action TEXT NOT NULL, -- create_invoice, update_invoice, cancel_invoice, record_payment, etc.
-    entity_type TEXT NOT NULL, -- invoice, party, product, payment, settings
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
     entity_id TEXT,
     details JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- --------------------------------------------------------------------
--- 14. PERFORMANCE INDEXES
+-- 16. PERFORMANCE INDEXES
 -- --------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_business_members_user ON business_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_business_members_business ON business_members(business_id);
@@ -493,100 +483,44 @@ CREATE INDEX IF NOT EXISTS idx_notifications_business ON notifications(business_
 CREATE INDEX IF NOT EXISTS idx_audit_logs_business ON audit_logs(business_id);
 
 -- --------------------------------------------------------------------
--- 15. STORED FUNCTIONS & SEQUENCE GENERATOR
+-- 17. AUTOMATIC AUTH TRIGGER (Syncs auth.users to public.profiles)
 -- --------------------------------------------------------------------
-
--- Function: Atomic next invoice number generator
-CREATE OR REPLACE FUNCTION generate_next_invoice_number(p_business_id UUID, p_prefix TEXT)
-RETURNS TEXT AS $$
-DECLARE
-    next_seq INT;
-    formatted_num TEXT;
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE businesses
-    SET current_invoice_sequence = current_invoice_sequence + 1
-    WHERE id = p_business_id
-    RETURNING current_invoice_sequence INTO next_seq;
-    
-    formatted_num := p_prefix || '-' || LPAD(next_seq::TEXT, 5, '0');
-    RETURN formatted_num;
+    INSERT INTO public.profiles (id, email, full_name, avatar_url, phone)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+        NEW.raw_user_meta_data->>'avatar_url',
+        NEW.raw_user_meta_data->>'phone'
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET 
+        full_name = EXCLUDED.full_name,
+        avatar_url = EXCLUDED.avatar_url,
+        updated_at = NOW();
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- --------------------------------------------------------------------
--- 16. ROW LEVEL SECURITY (RLS) POLICIES
--- --------------------------------------------------------------------
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE businesses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE business_members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE parties ENABLE ROW LEVEL SECURITY;
-ALTER TABLE product_categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE inventory_transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
-ALTER TABLE invoice_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quotations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quotation_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE expense_categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE purchases ENABLE ROW LEVEL SECURITY;
-ALTER TABLE purchase_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sales_returns ENABLE ROW LEVEL SECURITY;
-ALTER TABLE purchase_returns ENABLE ROW LEVEL SECURITY;
-ALTER TABLE credit_notes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE debit_notes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT OR UPDATE ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Helper function: Check if user belongs to business
-CREATE OR REPLACE FUNCTION is_business_member(b_id UUID)
-RETURNS BOOLEAN AS $$
-BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM business_members
-        WHERE business_id = b_id AND user_id = auth.uid()
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Profiles: Users can read/write their own profile
-CREATE POLICY "Users can read own profile" ON profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
-CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
-
--- Businesses: Users can access businesses they are member of
-CREATE POLICY "Members can view business" ON businesses FOR SELECT USING (is_business_member(id) OR owner_id = auth.uid());
-CREATE POLICY "Owners can update business" ON businesses FOR UPDATE USING (is_business_member(id));
-CREATE POLICY "Users can create business" ON businesses FOR INSERT WITH CHECK (auth.uid() = owner_id);
-
--- Business Members:
-CREATE POLICY "Members can view membership" ON business_members FOR SELECT USING (is_business_member(business_id) OR user_id = auth.uid());
-CREATE POLICY "Owners can manage membership" ON business_members FOR ALL USING (is_business_member(business_id));
-
--- Core Business Entities: Enforce tenant isolation via is_business_member(business_id)
-CREATE POLICY "Party tenant isolation" ON parties FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Category tenant isolation" ON product_categories FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Product tenant isolation" ON products FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Inventory tx tenant isolation" ON inventory_transactions FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Invoice tenant isolation" ON invoices FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Invoice items tenant isolation" ON invoice_items FOR ALL USING (
-    EXISTS (SELECT 1 FROM invoices WHERE invoices.id = invoice_items.invoice_id AND is_business_member(invoices.business_id))
-);
-CREATE POLICY "Quotations tenant isolation" ON quotations FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Quotation items tenant isolation" ON quotation_items FOR ALL USING (
-    EXISTS (SELECT 1 FROM quotations WHERE quotations.id = quotation_items.quotation_id AND is_business_member(quotations.business_id))
-);
-CREATE POLICY "Payments tenant isolation" ON payments FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Expense categories tenant isolation" ON expense_categories FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Expenses tenant isolation" ON expenses FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Purchases tenant isolation" ON purchases FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Purchase items tenant isolation" ON purchase_items FOR ALL USING (
-    EXISTS (SELECT 1 FROM purchases WHERE purchases.id = purchase_items.purchase_id AND is_business_member(purchases.business_id))
-);
-CREATE POLICY "Sales return tenant isolation" ON sales_returns FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Purchase return tenant isolation" ON purchase_returns FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Credit note tenant isolation" ON credit_notes FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Debit note tenant isolation" ON debit_notes FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Notifications tenant isolation" ON notifications FOR ALL USING (is_business_member(business_id));
-CREATE POLICY "Audit logs tenant isolation" ON audit_logs FOR ALL USING (is_business_member(business_id));
+-- Sync existing users from auth.users into profiles immediately
+INSERT INTO public.profiles (id, email, full_name, avatar_url, phone)
+SELECT 
+    id,
+    email,
+    COALESCE(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name', split_part(email, '@', 1)),
+    raw_user_meta_data->>'avatar_url',
+    raw_user_meta_data->>'phone'
+FROM auth.users
+ON CONFLICT (id) DO UPDATE
+SET 
+    full_name = EXCLUDED.full_name,
+    avatar_url = EXCLUDED.avatar_url,
+    updated_at = NOW();

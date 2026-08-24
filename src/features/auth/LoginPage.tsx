@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Mail, ArrowRight, CheckCircle2, Sparkles, Sun, Moon } from 'lucide-react';
+import { Zap, Mail, ArrowRight, CheckCircle2, Sun, Moon } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { useAuth } from '../../context/AuthContext';
@@ -132,19 +132,6 @@ export const LoginPage: React.FC = () => {
               Sign In with Email
             </Button>
           </form>
-
-          {/* Quick Demo Store Bypass */}
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
-            <p className="text-[11px] text-slate-400 mb-2">Want instant access without logging in?</p>
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 underline cursor-pointer inline-flex items-center gap-1.5"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Explore Demo Store (Shree Hari Electronics)</span>
-            </button>
-          </div>
         </div>
 
         <div className="text-center mt-6">

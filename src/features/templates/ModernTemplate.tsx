@@ -222,10 +222,19 @@ export const ModernTemplate: React.FC<TemplateProps> = ({ invoice, business }) =
                   amount: invoice.balance_due,
                   transactionNote: `Bill ${invoice.invoice_number}`,
                 })}
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={(e) => {
+                  const upi = generateUPIPaymentString({
+                    upiId: business.upi_id || '',
+                    payeeName: business.name,
+                    amount: invoice.balance_due,
+                    transactionNote: `Bill ${invoice.invoice_number}`,
+                  });
+                  if (upi) {
+                    window.location.href = upi;
+                  }
+                }}
                 title="Scan or Tap to Pay via UPI"
-                className="text-center shrink-0 cursor-pointer block group"
+                className="text-center shrink-0 cursor-pointer block group no-underline"
               >
                 <img
                   src={qrDataUrl}

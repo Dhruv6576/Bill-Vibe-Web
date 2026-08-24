@@ -1,10 +1,31 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root {
     --color-primary: 99 102 241;
+  }
+
+  /* High-Contrast Beautiful Text Selection across all pages */
+  ::selection {
+    background-color: #6366f1 !important; /* Premium Indigo */
+    color: #ffffff !important;           /* Crisp White text */
+  }
+
+  ::-moz-selection {
+    background-color: #6366f1 !important;
+    color: #ffffff !important;
+  }
+
+  .dark ::selection {
+    background-color: #818cf8 !important; /* Soft Indigo */
+    color: #0f172a !important;           /* Deep dark text */
+  }
+
+  .dark ::-moz-selection {
+    background-color: #818cf8 !important;
+    color: #0f172a !important;
   }
 
   html,

@@ -20,6 +20,7 @@ import { storageService } from '../../services/storageService';
 import { Party, PartyType } from '../../types';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { PhoneInput } from '../../components/common/PhoneInput';
 import { Select } from '../../components/common/Select';
 import { Modal } from '../../components/common/Modal';
 import { Badge } from '../../components/common/Badge';
@@ -427,11 +428,10 @@ export const PartiesPage: React.FC = () => {
               value={formData.business_name}
               onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
             />
-            <Input
+            <PhoneInput
               label="Phone Number"
-              placeholder="+91 98250 11223"
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              onChange={(val) => setFormData({ ...formData, phone: val })}
             />
           </div>
 

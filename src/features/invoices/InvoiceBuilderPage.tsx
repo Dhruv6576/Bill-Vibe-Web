@@ -18,6 +18,7 @@ import { storageService } from '../../services/storageService';
 import { Invoice, InvoiceItem, Party, Product } from '../../types';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { PhoneInput } from '../../components/common/PhoneInput';
 import { Select } from '../../components/common/Select';
 import { Textarea } from '../../components/common/Textarea';
 import { InvoicePreview } from './InvoicePreview';
@@ -450,11 +451,10 @@ export const InvoiceBuilderPage: React.FC = () => {
                 value={partyBusinessName}
                 onChange={(e) => setPartyBusinessName(e.target.value)}
               />
-              <Input
+              <PhoneInput
                 label="Phone Number"
-                placeholder="+91 98250 11223"
                 value={partyPhone}
-                onChange={(e) => setPartyPhone(e.target.value)}
+                onChange={setPartyPhone}
               />
             </div>
 

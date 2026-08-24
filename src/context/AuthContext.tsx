@@ -1,3 +1,4 @@
+import { supabaseSync } from '../services/supabaseSync';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Profile } from '../types';
 import { storageService } from '../services/storageService';
@@ -25,13 +26,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isSupabaseConfigured()) {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
-            setUser({
+            const profileData: Profile = {
               id: session.user.id,
               email: session.user.email || '',
-              full_name: session.user.user_metadata?.full_name || 'Business Owner',
-              avatar_url: session.user.user_metadata?.avatar_url,
+              full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Business Owner',
+              avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
               created_at: session.user.created_at,
-            });
+            };
+            setUser(profileData);
+            supabaseSync.syncProfile(profileData);
           } else {
             // Default demo session
             setUser(storageService.getCurrentUser());
@@ -39,14 +42,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             if (session?.user) {
-              setUser({
-                id: session.user.id,
-                email: session.user.email || '',
-                full_name: session.user.user_metadata?.full_name || 'Business Owner',
-                avatar_url: session.user.user_metadata?.avatar_url,
-                created_at: session.user.created_at,
-              });
-            } else {
+            const profileData: Profile = {
+              id: session.user.id,
+              email: session.user.email || '',
+              full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Business Owner',
+              avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
+              created_at: session.user.created_at,
+            };
+            setUser(profileData);
+            supabaseSync.syncProfile(profileData);
+          } else {
               setUser(null);
             }
           });
